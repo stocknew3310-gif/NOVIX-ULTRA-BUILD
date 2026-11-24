@@ -1,0 +1,86 @@
+
+name: NOVIX ULTRA APK Build
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'NOVIX ULTRA.zip'
+      - '.github/workflows/android-build.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '11'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '7.4.2'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK 33
+        run: |
+          yes | sdkmanager --licenses
+          sdkmanager "platforms;android-33" "build-tools;33.0.2"
+
+      - name: Extract Project
+        run: |
+          unzip -q "NOVIX ULTRA.zip" -d build-source
+
+      - name: Prepare Project
+        working-directory: build-source/NOVIX ULTRA
+        run: |
+          cat > build.gradle <<'EOF'
+          buildscript {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+              dependencies {
+                  classpath 'com.android.tools.build:gradle:7.3.1'
+              }
+          }
+
+          allprojects {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+
+          task clean(type: Delete) {
+              delete rootProject.buildDir
+          }
+          EOF
+
+          sed -i 's/@drawable\/ic_logo/@drawable\/ic_launcher/' app/src/main/AndroidManifest.xml
+          sed -i 's/android.useAndroidX=false/android.useAndroidX=true/' gradle.properties
+          sed -i 's/android.enableJetifier=false/android.enableJetifier=true/' gradle.properties
+          rm -rf app/build
+
+      - name: Build NOVIX ULTRA APK
+        working-directory: build-source/NOVIX ULTRA
+        run: gradle assembleDebug --no-daemon --stacktrace
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: NOVIX-ULTRA-APK
+          path: build-source/NOVIX ULTRA/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 7
